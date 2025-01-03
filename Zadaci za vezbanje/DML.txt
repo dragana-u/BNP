@@ -1,0 +1,354 @@
+1. Да се напише DML израз со кој ќе се вратат матичните броеви на лицата (сортирани во растечки редослед) кои биле позитивни и потоа примиле барем една доза вакцина.
+
+SELECT DISTINCT l.id
+FROM Lice l
+JOIN Test t ON l.id = t.id
+JOIN Vakcinacija_datum vd ON l.id = vd.id_lice
+WHERE t.rezultat = 'pozitiven' AND t.datum < vd.datum
+ORDER BY l.id ASC
+
+2. Да се напише DML израз со кој ќе се вратат имињата и презимињата на гитаристите (музичарите кои свират на инструментот гитара) кои настапиле на концерт заедно со бенд откако го напуштиле. Датумот на настап на музичарот заедно со бендот е датумот на самиот концерт. Резултатите треба да се подредени според името во растечки редослед. 
+
+SELECT m.ime, m.prezime
+FROM Muzicar m
+JOIN Muzicar_instrument mi ON m.id = mi.id_muzicar
+JOIN Muzicar_bend mb ON m.id = mb.id_muzicar
+JOIN Koncert_muzicar_bend kmb ON m.id = kmb.id_muzicar AND mb.id_bend = kmb.id_bend
+JOIN Koncert k ON k.id = kmb.id_koncert
+WHERE mb.datum_napustanje IS NOT NULL
+  AND mb.datum_napustanje < k.datum
+  AND mi.instrument = 'gitara'
+GROUP BY m.ime, m.prezime
+ORDER BY m.ime;
+
+3. Да се напише DML израз со кој ќе се вратат името и презимето на корисниците кои во ист ден посетиле објекти кои се наоѓаат во соседни градови. 
+
+SELECT DISTINCT k.ime, k.prezime
+FROM Korisnik k
+JOIN Poseta p1 ON k.kor_ime = p1.kor_ime
+JOIN Objekt o1 ON p1.id_mesto = o1.id_mesto
+JOIN Grad g1 ON o1.id_grad = g1.id_mesto
+JOIN Sosedi s ON g1.id_mesto = s.grad1
+JOIN Grad g2 ON s.grad2 = g2.id_mesto
+JOIN Objekt o2 ON g2.id_mesto = o2.id_grad
+JOIN Poseta p2 ON k.kor_ime = p2.kor_ime AND p2.id_mesto = o2.id_mesto
+WHERE p1.datum = p2.datum
+  AND p1.id_mesto <> p2.id_mesto;
+
+4.Да се напише DML израз со кој ќе се вратат името и презимето на корисниците кои посетиле објекти кои се наоѓаат во соседни градови чие растојание е помало од 300 km.
+
+SELECT DISTINCT k.ime, k.prezime
+FROM Korisnik k
+JOIN Poseta p1 ON k.kor_ime = p1.kor_ime
+JOIN Objekt o1 ON p1.id_mesto = o1.id_mesto
+JOIN Grad g1 ON o1.id_grad = g1.id_mesto
+JOIN Sosedi s ON g1.id_mesto = s.grad1
+JOIN Grad g2 ON s.grad2 = g2.id_mesto
+JOIN Objekt o2 ON g2.id_mesto = o2.id_grad
+JOIN Poseta p2 ON k.kor_ime = p2.kor_ime AND p2.id_mesto = o2.id_mesto
+AND s.rastojanie < 300
+
+5. Да се напише DML израз со кој ќе се вратат имињата и презимињата на сите премиум корисници кои препорачале видео запис со времетраење подолго од 2 часа и за кој оставиле оцена поголема или еднаква на 4, подредени според датумот на регистрација во растечки редослед.
+
+SELECT DISTINCT k.ime, k.prezime
+FROM Korisnik k
+JOIN Premium_korisnik pk ON k.k_ime = pk.k_ime
+JOIN Preporaka p ON k.k_ime = p.k_ime_od
+JOIN Video_zapis vz ON vz.naslov = p.naslov
+WHERE vz.vremetraenje > 120 AND p.ocena >= 4
+ORDER BY k.datum_reg
+
+6. Да се напише DML израз со кој ќе се вратат корисничките имиња и насловите на препорачаните видео записи за сите премиум корисници кои добиле препорака со оцена поголема од 3 за барем еден видео запис во 2021 година кој е дел од листата на желби во барем еден од нивните профили, подредени според корисничкото име.
+
+SELECT k.k_ime, vz.naslov
+FROM Korisnik k
+JOIN Premium_korisnik pk ON k.k_ime = pk.k_ime
+JOIN Profil pf ON pf.k_ime = k.k_ime 
+JOIN Preporaka p ON k.k_ime = p.k_ime_na
+JOIN Video_zapis vz ON vz.naslov = p.naslov
+JOIN Lista_zelbi lz ON lz.naslov = vz.naslov
+AND lz.k_ime = k.k_ime AND lz.ime = pf.ime
+WHERE p.ocena > 3 AND p.datum BETWEEN '2021-01-01' AND '2021-12-31'
+ORDER BY k.k_ime
+
+7. Да се напише DML израз со кој ќе се врати информација за тоа колкав процент од лицата кои имале позитивен тест во август 2021 не биле целосно вакцинирани (вакцинирани со две дози вакцина).
+
+CREATE VIEW brLica AS
+SELECT l.id, 
+       (SELECT COUNT(DISTINCT l.id) 
+        FROM Lice l
+        JOIN Test t ON l.id = t.id
+        WHERE t.rezultat = 'pozitiven' 
+          AND t.datum BETWEEN '2021-08-01' AND '2021-08-31') AS br
+FROM Lice l
+JOIN Test t ON l.id = t.id
+WHERE t.rezultat = 'pozitiven' 
+  AND t.datum BETWEEN '2021-08-01' AND '2021-08-31';
+
+SELECT (COUNT(DISTINCT bl.id) * 100.0) / (bl.br) AS procent
+FROM brLica bl
+JOIN Vakcinacija v ON bl.id = v.id_lice
+JOIN Vakcinacija_datum vd ON vd.shifra_vakcina = v.shifra_vakcina;
+
+8. Да се напише DML израз со кој ќе се вратат сите парови на бендови (пар од имињата на бендовите) кои се основани во иста година. 
+
+SELECT b1.ime AS B1, b2.ime AS B2
+FROM Bend b1
+JOIN Bend b2 ON b1.godina_osnovanje = b2.godina_osnovanje  AND b1.ime > b2.ime
+ORDER BY b1.id OR b2.id
+
+9. Да се напише DML израз со кој ќе се врати името на градот во кој се наоѓа објектот што бил посетен најголем број пати.
+
+CREATE VIEW temp AS
+SELECT m.ime,o.id_grad, COUNT(p.kor_ime) AS br
+FROM Mesto m
+JOIN Objekt o ON o.id_mesto = m.id
+JOIN Poseta p ON p.id_mesto = m.id
+GROUP BY m.ime,o.id_grad;
+
+SELECT mm.ime
+FROM Temp temp
+JOIN Grad g ON g.id_mesto = temp.id_grad
+JOIN Mesto mm ON g.id_mesto = mm.id
+WHERE temp.br = (SELECT MAX(br) FROM temp)
+
+10. Да се напише DML израз со кој ќе се вртат имињата на објектите кои се наоѓаат во градот што бил посетен најголем број пати. За посети на градови се сметаат посетите на места што претставуваат градови. Во ова не се вклучени посетите на објекти во тие градови.
+
+CREATE VIEW temp AS
+SELECT m.ime,g.id_mesto, COUNT(p.kor_ime) AS br
+FROM Mesto m
+JOIN Grad g ON m.id = g.id_mesto
+JOIN Poseta p ON p.id_mesto = m.id
+GROUP BY m.ime,g.id_mesto;
+
+SELECT mm.ime
+FROM Temp tmp
+JOIN Objekt o ON tmp.id_mesto = o.id_grad
+JOIN Mesto mm ON o.id_mesto = mm.id
+WHERE tmp.br = (SELECT MAX(br) FROM temp)
+ORDER BY mm.ime DESC
+
+11. Да се напише DML израз со кој ќе се вратат корисничкото име и бројот на видео записи кои му биле препорачани на корисникот кој дал најголем број на препораки.
+
+CREATE VIEW preporacal AS
+SELECT p.k_ime_od,COUNT(p.k_ime_od) AS br
+FROM Korisnik k
+JOIN Preporaka p ON k.k_ime = p.k_ime_od
+GROUP BY p.k_ime_od;
+
+CREATE VIEW dobilPreporaki AS
+SELECT p.k_ime_na, COUNT(k_ime_na) AS brD
+FROM Korisnik k
+JOIN Preporaka p ON k.k_ime = p.k_ime_na
+GROUP BY p.k_ime_na;
+
+SELECT p.k_ime_od AS k_ime, dp.brD AS dobieni_preporaki
+FROM preporacal p
+JOIN dobilPreporaki dp ON dp.k_ime_na = p.k_ime_od 
+WHERE p.br = (SELECT MAX(br) FROM preporacal)
+
+12. Да се напише DML израз со кој за секој корисник ќе се врати видео записот кој го препорачал најголем број пати.
+
+CREATE VIEW brPreporacal AS
+SELECT k.k_ime,vz.naslov,COUNT(k.k_ime) AS broj
+FROM Korisnik k
+JOIN Preporaka p ON p.k_ime_od = k.k_ime
+JOIN Video_zapis vz ON vz.naslov = p.naslov
+GROUP BY k.k_ime,vz.naslov;
+
+SELECT b.k_ime,b.naslov,b.broj
+FROM brPreporacal b
+WHERE b.broj = (
+    SELECT MAX(b1.broj)
+    FROM brPreporacal b1
+    WHERE b1.k_ime = b.k_ime
+);
+
+13. Да се напише DML израз со кој за секој фестивал ќе се врати името, цената на билетите, капацитетот на посетители, бројот на одржувања и вкупниот број на различни бендови кои настапиле. 
+
+CREATE VIEW brOddrzvenja AS
+SELECT f.id,COUNT(f.id) AS brO
+FROM Festival f
+JOIN Festival_odrzuvanje fo ON f.id = fo.id
+GROUP BY f.id;
+
+CREATE VIEW brBend AS
+SELECT f.id,COUNT(DISTINCT fb.id_bend) AS brB
+FROM Festival f
+JOIN Festival_odrzuvanje fo ON f.id = fo.id
+JOIN Festival_bend fb ON fo.id = fb.id_festival
+GROUP BY f.id;
+
+SELECT f.ime, n.cena,n.kapacitet,br.brO AS broj_odrzuvanja, bB.brB AS broj_bendovi
+FROM Festival f
+JOIN Nastan n ON n.id=f.id
+JOIN brOddrzvenja br ON br.id = f.id
+JOIN brBend bB ON bB.id = f.id
+
+14. Да се напише DML израз со кој за секој профил ќе се врати името на профилот и просечната оцена на видео записите во листата на желби асоцирана со тој профил. (Просечната оцена на секој видео запис се пресметува од сите оцени за тој видео запис).
+
+CREATE VIEW prosecnaOcena AS
+SELECT pr.naslov, AVG(pr.ocena) AS po_profil
+FROM Preporaka pr
+GROUP BY pr.naslov;
+
+SELECT DISTINCT p.ime, AVG(po.po_profil) AS po_profil
+FROM Profil p
+JOIN Lista_zelbi lz ON p.k_ime = lz.k_ime AND p.ime = lz.ime
+JOIN prosecnaOcena po ON po.naslov = lz.naslov
+GROUP BY p.ime, p.k_ime
+
+15. Да се напише DML израз со кој ќе се вратат имињата и презимињата на сите шалтерски работници кои имаат направено трансакција за исплата на средства во износ поголем од 1000 EUR од сметка која работи со валута EUR, подредени според името на шалтерските работници.
+
+SELECT DISTINCT v.ime,v.prezime
+FROM Vraboten v
+JOIN Shalterski_rabotnik sr ON v.ID = sr.ID
+JOIN Transakcija_shalter ts ON v.ID = ts.ID_v
+JOIN Smetka s ON ts.MBR_k_s = s.MBR_k AND ts.broj = s.broj
+WHERE s.valuta = 'EUR' AND ts.suma > 1000 AND ts.tip = 'isplata'
+ORDER BY v.ime
+
+16. Да се напише DML израз со кој ќе се вратат имињата и презимињата на на сите клиенти кои имаат направено трансакција за исплата на средства преку банкомат во износ поголем од 400 USD од сметка која работи со валута USD, подредени според името на клиентите.
+
+SELECT k.ime, k.prezime
+FROM Klient k
+JOIN Smetka s ON k.MBR_k = s.MBR_k
+JOIN Transakcija_bankomat tb ON s.MBR_k = tb.MBR_k_s AND s.broj = tb.broj
+WHERE tb.suma > 400 AND s.valuta = 'USD'
+ORDER BY k.ime
+
+17. Да се напише DML израз со кој ќе се вратат сите сметки кои работат со валута MKD од кои е направена барем една трансакција за исплата преку шалтер и барем една трансакција за исплата преку банкомат во 2021 година, подредени според бројот на сметка.
+
+SELECT s.*
+FROM Smetka s
+JOIN Transakcija_shalter ts ON s.broj = ts.broj AND s.MBR_k = ts.MBR_k_s
+JOIN Transakcija_bankomat tb ON s.broj = tb.broj AND s.MBR_k = tb.MBR_k_s
+WHERE ts.datum BETWEEN '2021-01-01' AND '2021-12-31'
+AND tb.datum BETWEEN '2021-01-01' AND '2021-12-31' 
+AND s.valuta = 'MKD' AND ts.tip = 'isplata' 
+ORDER BY s.broj
+
+18. Да се напише DML израз со кој ќе се вратат сите клиенти кои направиле барем една трансакција преку банкомат (за сметки кои работат со валута EUR), но не направиле ниту една трансакција преку шалтер од истата сметка, подредени според името на клиентот.
+
+SELECT DISTINCT k.*
+FROM Klient k
+JOIN Smetka s ON k.MBR_k = s.MBR_k
+JOIN Transakcija_bankomat tb ON s.broj = tb.broj AND s.MBR_k = tb.MBR_k_s
+WHERE s.valuta = 'EUR'
+AND NOT EXISTS (
+SELECT 1
+FROM Transakcija_shalter ts
+WHERE s.MBR_k = ts.MBR_k_s AND s.broj = ts.broj
+)
+ORDER BY k.ime
+
+19. Да се напише DML израз со кој за секој шалтерски работник ќе се врати неговата шифра, датумот и бројот на трансакции за датумот на кој има направено најголем број на трансакции.
+
+CREATE VIEW brTransakcii AS
+SELECT ts.ID_v as vraboten,ts.datum,COUNT(ts.ID) as broj_transakcii
+FROM Transakcija_shalter ts
+GROUP BY ts.ID_v,ts.datum;
+
+SELECT *
+FROM brTransakcii bt
+WHERE bt.broj_transakcii = (
+    SELECT MAX(br.broj_transakcii) 
+    FROM brTransakcii br
+    WHERE br.vraboten = bt.vraboten
+)
+
+20. Да се напише DML израз со кој за секоја сметка која работи со валута EUR или USD да се вратат просечната направена сума oд трансакции за исплата преку шалтер во 2021 година и просечната направена сума од трансакции за исплата преку банкомат во 2021 година, подредени според бројот на сметка.
+
+CREATE VIEW prosekShalter AS
+SELECT s.MBR_k,s.broj,AVG(ts.suma) AS prosechna_isplata_shalter
+FROM Smetka s
+JOIN Transakcija_shalter ts ON s.broj = ts.broj AND s.MBR_k = ts.MBR_k_s
+WHERE ts.datum BETWEEN '2021-01-01' AND '2021-12-31' AND ts.tip = 'isplata'
+AND (s.valuta = 'EUR' OR s.valuta = 'USD')
+GROUP BY s.broj,s.MBR_k;
+
+CREATE VIEW prosekBankomat AS
+SELECT s.MBR_k,s.broj,AVG(tb.suma) AS prosechna_isplata_bankomat
+FROM Smetka s
+JOIN Transakcija_bankomat tb ON s.broj = tb.broj AND s.MBR_k = tb.MBR_k_s
+WHERE tb.datum BETWEEN '2021-01-01' AND '2021-12-31'
+AND (s.valuta = 'EUR' OR s.valuta = 'USD')
+GROUP BY s.broj,s.MBR_k;
+
+SELECT pb.*,ps.prosechna_isplata_shalter
+FROM prosekShalter ps
+JOIN prosekBankomat pb ON ps.broj = pb.broj AND ps.MBR_k = pb.MBR_k
+ORDER BY ps.broj
+
+21. Да се вратат имињата и презимињата на сите премиум корисници кои препорачале видео запис со времетраење подолго од 2 часа и за кој оставиле оцена поголема или еднаква на 4, подредени според датумот на регистрација во растечки редослед (времетраењето се чува во минути)
+
+SELECT DISTINCT k.ime,k.prezime
+FROM Korisnik k
+JOIN Premium_korisnik pk ON k.k_ime = pk.k_ime
+JOIN Preporaka p ON p.k_ime_od = pk.k_ime
+JOIN Video_zapis vz ON vz.naslov = p.naslov
+WHERE p.ocena >= 4 AND vz.vremetraenje > 120
+ORDER BY k.datum_reg
+
+22. Да се вратат корисничкото име и бројот на видео записи кои му биле препорачани на корисникот кој дал најголем број на препораки.
+
+CREATE VIEW preporacal AS
+SELECT p.k_ime_od,COUNT(p.k_ime_od) AS br
+FROM Korisnik k
+JOIN Preporaka p ON k.k_ime = p.k_ime_od
+GROUP BY p.k_ime_od;
+
+CREATE VIEW dobilPreporaki AS
+SELECT p.k_ime_na, COUNT(k_ime_na) AS brD
+FROM Korisnik k
+JOIN Preporaka p ON k.k_ime = p.k_ime_na
+GROUP BY p.k_ime_na;
+
+SELECT p.k_ime_od AS k_ime, dp.brD AS dobieni_preporaki
+FROM preporacal p
+JOIN dobilPreporaki dp ON dp.k_ime_na = p.k_ime_od 
+WHERE p.br = (SELECT MAX(br) FROM preporacal)
+
+23. За секој профил да се врати името на профилот и просечната оцена на видео записите во листата на желби асоцирана со тој профил. (Просечната оцена на секој видео запис се пресметува од сите оцени за тој видео запис).
+
+CREATE VIEW prosecnaOcena AS
+SELECT pr.naslov, AVG(pr.ocena) AS po_profil
+FROM Preporaka pr
+GROUP BY pr.naslov;
+
+SELECT DISTINCT p.ime, AVG(po.po_profil) AS po_profil
+FROM Profil p
+JOIN Lista_zelbi lz ON p.k_ime = lz.k_ime AND p.ime = lz.ime
+JOIN prosecnaOcena po ON po.naslov = lz.naslov
+GROUP BY p.ime, p.k_ime
+
+24. Да се вратат жанровите заедно со бројот на препораки со коментар што го содржи зборот „interesting“, подредени според бројот на препораки во опаѓачки ред.
+
+SELECT vzz.zanr,COUNT(*) AS broj_zanrovi
+FROM Video_zapis_zanr vzz 
+JOIN Preporaka p ON vzz.naslov = p.naslov
+WHERE p.komentar IS NOT NULL AND p.komentar IS NOT ''
+AND p.komentar LIKE '%interesting%'
+
+25. Да се врати список со насловите на видеата, времетраењето и бројот на препораки, за видеа кои се во листата на желби на најмалку два различни профили.
+
+CREATE VIEW najmalkuDva AS
+SELECT lz.naslov
+FROM Lista_zelbi lz
+GROUP BY lz.naslov
+HAVING COUNT(DISTINCT lz.k_ime) >= 2 OR COUNT(DISTINCT lz.ime) >= 2;
+
+SELECT vz.naslov,vremetraenje,COUNT(pp.ID) AS broj_preporaki
+FROM najmalkuDva nd
+LEFT JOIN Preporaka pp ON nd.naslov = pp.naslov
+JOIN Video_zapis vz ON vz.naslov = nd.naslov
+GROUP BY vz.naslov
+
+26. Да се вратат имињата на сите корисници кои имаат дадено препораки за видеа кои никој од нивните профили не ги има во листата на желби.
+
+SELECT DISTINCT pp.k_ime_od
+FROM Preporaka pp
+LEFT JOIN Lista_zelbi lz ON lz.k_ime = pp.k_ime_od AND lz.naslov=pp.naslov
+WHERE lz.naslov IS NULL
+
+
