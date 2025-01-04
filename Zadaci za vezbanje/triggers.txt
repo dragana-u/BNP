@@ -1,0 +1,173 @@
+1.
+За секој музичар се чува изведен атрибут „br_bendovi“ кој го означува бројот на бендови во кои свири тој музичар.
+
+Да се напише/ат соодветниот/те тригер/и за одржување на конзистентноста на атрибутот „br_bendovi“ при зачленување во бенд.
+
+CREATE TRIGGER t1
+AFTER INSERT ON Muzicar_bend
+FOR EACH ROW
+BEGIN
+    UPDATE Muzicar
+    SET br_bendovi = (
+        SELECT COUNT(*)
+        FROM Muzicar_bend mb
+        WHERE mb.id_muzicar = NEW.id_muzicar
+        )   
+    WHERE id = NEW.id_muzicar;
+END;
+
+2.
+За секој видео запис се чува изведен атрибут „prosechna_ocena“ кој ја означува просечната оцена добиена од препораки. Дополнително, пресметана е моменталната вредност на овој атрибут за секој видео запис.
+
+Да се напише/ат соодветниот/те тригер/и за одржување на конзистентноста на атрибутот „prosechna_ocena“ при додавање на записите од кои зависи неговата вредност.
+
+CREATE TRIGGER t1
+AFTER INSERT ON Preporaka
+FOR EACH ROW
+BEGIN
+    UPDATE Video_zapis
+    SET prosechna_ocena = (
+        SELECT AVG(p.ocena)
+        FROM Preporaka p
+        WHERE p.naslov = NEW.naslov
+    )
+    WHERE naslov = NEW.naslov;
+END;
+
+3.
+Во табелата Lice е креиран изведен атрибут „celosno_imuniziran“ кој прима вредности 0 и 1 и кажува дали лицето е целосно имунизирано (вакцинирано со барем две дози вакцина). Дополнително, пресметана е моменталната вредност на овој атрибут за секое лице.
+
+Да се напише/ат тригер/и за одржување на вредноста на атрибутот „celosno_imuniziran“ при додавање на записите од кои зависи неговата вредност.
+
+CREATE TRIGGER t1
+AFTER INSERT ON Vakcinacija_datum
+FOR EACH ROW
+BEGIN
+    UPDATE Lice
+    SET celosno_imuniziran = 0
+    WHERE id = NEW.id_lice
+    AND id IN (
+        SELECT id_lice
+        FROM Vakcinacija_datum
+        WHERE id_lice = NEW.id_lice
+        GROUP BY id_lice
+        HAVING COUNT(*) < 2
+    );
+    UPDATE Lice
+    SET celosno_imuniziran = 1
+    WHERE id = NEW.id_lice
+    AND id IN (
+        SELECT id_lice
+        FROM Vakcinacija_datum
+        WHERE id_lice = NEW.id_lice
+        GROUP BY id_lice
+        HAVING COUNT(*) >= 2
+    );
+END;
+
+4.
+За секое лице дополнително се чува изведен атрибут „vakcinalen_status“ кој го покажува моменталниот статус за вакцините на даденото лице. Атрибутот vakcinalen_status може да ги прима следните вредности: 'nema vakcina', 'primena prva doza', 'primeni dve dozi'. На почеток сите лица имаат vakcinalen_status='nema vakcina'. Статусот на дадено лице станува 'primena prva doza' кога лицето ќе прими прва доза од некоја вакцина. Статусот на дадено лице станува 'primeni dve dozi' кога лицето ќе ја прими втората доза од вакцината.
+
+Да се напише/ат тригер/и за одржување на вредноста на атрибутот „vakcinalen_status“ при додавање на нови записи од кои зависи неговата вредност.
+
+CREATE TRIGGER t1
+AFTER INSERT ON Vakcinacija_datum
+FOR EACH ROW
+BEGIN
+    UPDATE Lice
+    SET vakcinalen_status = 'nema vakcina'
+    WHERE id = NEW.id_lice
+    AND id IN (
+        SELECT id_lice
+        FROM Vakcinacija_datum
+        WHERE id_lice = NEW.id_lice
+        GROUP BY id_lice
+        HAVING COUNT(*) = 0
+    );
+    
+    UPDATE Lice
+    SET vakcinalen_status = 'primena prva doza'
+    WHERE id = NEW.id_lice
+    AND id IN (
+        SELECT id_lice
+        FROM Vakcinacija_datum
+        WHERE id_lice = NEW.id_lice
+        GROUP BY id_lice
+        HAVING COUNT(*) = 1
+    );
+    
+    UPDATE Lice
+    SET vakcinalen_status = 'primeni dve dozi'
+    WHERE id = NEW.id_lice
+    AND id IN (
+        SELECT id_lice
+        FROM Vakcinacija_datum
+        WHERE id_lice = NEW.id_lice
+        GROUP BY id_lice
+        HAVING COUNT(*) = 2
+    );
+    
+END;
+
+5.
+Да се напише/ат соодветниот/те тригер/и за одржување на референцијалниот интегритет на релациите „СОСЕДИ“ и „ПОСЕТА“ доколку треба да се исполнети следните барања:
+
+Сакаме да водиме евиденција за соседните градови на град кој е избришан од системот.
+Не сакаме да водиме евиденција за посетите на места на корисници кои се избришани од системот.
+
+CREATE TRIGGER t1
+AFTER DELETE ON Grad
+FOR EACH ROW
+BEGIN
+    UPDATE Sosedi
+    SET grad1 = NULL
+    WHERE grad1 = OLD.id_mesto;
+    
+    UPDATE Sosedi
+    SET grad2 = NULL
+    WHERE grad2 = OLD.id_mesto;
+END;
+
+CREATE TRIGGER t2
+AFTER DELETE ON Korisnik
+FOR EACH ROW
+BEGIN
+    DELETE FROM Poseta
+    WHERE kor_ime = OLD.kor_ime;
+END;
+
+6.
+За секое место се чува изведен атрибут „broj_poseti“ кој го означува бројот на различни корисници кои го посетиле.
+
+Да се напише/ат соодветниот/те тригер/и за одржување на конзистентноста на атрибутот „broj_poseti“ при додавање на записите од кои зависи нивната вредност.
+
+CREATE TRIGGER t1
+AFTER INSERT ON Poseta
+FOR EACH ROW
+BEGIN
+    UPDATE Mesto
+    SET broj_poseti = (
+        SELECT COUNT(DISTINCT kor_ime)
+        FROM Poseta
+        WHERE id_mesto = NEW.id_mesto
+    )
+    WHERE id = NEW.id_mesto;
+END;
+
+7.
+За секој корисник се чува изведен атрибут „broj_poseti“ кој го означува бројот на различни места кои ги посетиле.
+
+Да се напише/ат соодветниот/те тригер/и за одржување на конзистентноста на атрибутот „broj_poseti“ при додавање на записите од кои зависи нивната вредност.
+
+CREATE TRIGGER t1
+AFTER INSERT ON Poseta
+FOR EACH ROW
+BEGIN
+    UPDATE Korisnik
+    SET broj_poseti = (
+        SELECT COUNT(DISTINCT kor_ime)
+        FROM Poseta
+        WHERE kor_ime = NEW.kor_ime
+    )
+    WHERE kor_ime = NEW.kor_ime;
+END;
