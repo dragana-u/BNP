@@ -1,0 +1,107 @@
+Релационата база е дефинирана преку следните релации: 
+
+
+Pateka(ime, grad, drzava, dolzina, tip)
+
+Trka(ime, krugovi, pateka*)
+
+Odrzana_trka(ime*, datum, vreme)
+
+Vozac(vozacki_broj, ime, prezime, nacionalnost, datum_r)
+
+Tim(ime, direktor)
+
+Sponzori(ime*, sponzor)
+
+Vozi_za(vozacki_broj*, ime_tim*, datum_pocetok, datum_kraj)
+
+
+Ucestvuva(ID, vozacki_broj*, ime_tim*, ime_trka*, datum_trka*, pocetna_p, krajna_p, poeni)
+
+
+
+1. Да се напишат соодветните DDL изрази за ентитетните множества „TРКА“, „ОДРЖАНА_ТРКА“ и „УЧЕСТВУВА“, како и за евентуалните релации кои произлегуваат од истите, доколку треба да бидат исполнети следните барања:
+
+Сакаме да водиме евиденција за учествата на трки од возачи кои се избришани од системот, но не сакаме да водиме евиденција за учествата на трки од тимови кои се избришани од системот.
+Само возачите кои ја завршиле трката на првите 10 позиции добиваат поени (останатите добиваат 0 поени). 
+Трката не смее да има повеќе од 80 кругови.
+Забелешка: Табелите и атрибутите потребно е да ги креирате со ИСТИТЕ ИМИЊА и ИСТИОТ РЕДОСЛЕД како што е дадено во релациониот модел. За табелите кои веќе се креирани претпоставете дека примарните клучеви се од тип TEXT. За надворешните клучеви за кои не е наведено ограничување за референцијален интегритет се претпоставува каскадна промена/бришење. Конкретните вредности за датум дефинирајте ги како стринг во формат 'YYYY-MM-DD' (на пример "2024-02-08").
+
+CREATE TABLE Trka(
+ime TEXT PRIMARY KEY, 
+krugovi TEXT, 
+pateka REFERENCES Pateka(ime) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT prov CHECK (krugovi <= 80)
+);
+
+CREATE TABLE Odrzana_trka(
+ime TEXT, 
+datum DATE, 
+vreme TIME,
+CONSTRAINT pk_ot PRIMARY KEY(ime,datum),
+CONSTRAINT fk_ot FOREIGN KEY(ime) REFERENCES Trka(ime) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Ucestvuva(
+ID NUMBER PRIMARY KEY, 
+vozacki_broj TEXT REFERENCES Vozac(vozacki_broj) ON DELETE SET NULL ON UPDATE CASCADE, 
+ime_tim TEXT TEXT REFERENCES Tim(ime) ON DELETE CASCADE ON UPDATE CASCADE, 
+ime_trka TEXT, 
+datum_trka DATE, 
+pocetna_p INT, 
+krajna_p INT, 
+poeni FLOAT,
+CONSTRAINT pk_u FOREIGN KEY(ime_trka,datum_trka) REFERENCES Odrzana_trka(ime,datum) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT ck_poeni CHECK ((krajna_p > 10 AND poeni = 0) OR (krajna_p <= 10 AND poeni> 0))
+);
+
+
+2. Да се напише DML израз со кој ќе се вратат информациите за возачите кои во 2023 година освоиле (еден или повеќе) поени на одржани трки со помалку од 70 кругови подредени според датумот на раѓање по опаѓачки редослед.
+
+SELECT DISTINCT v.*
+FROM Vozac v
+JOIN Ucestvuva u ON v.vozacki_broj = u.vozacki_broj
+JOIN Trka t ON t.ime = u.ime_trka
+WHERE u.datum_trka BETWEEN '2023-01-01' AND '2023-12-31'
+AND poeni >= 1 AND t.krugovi < 70
+ORDER BY v.datum_r DESC
+
+3. Да се напише DML израз со кој за секоја трка ќе се врати возачот кој има најмногу победи на таа трка.
+
+CREATE VIEW brojPobedi AS
+SELECT u.ime_trka AS race,u.vozacki_broj AS driver,COUNT(*) AS br 
+FROM Ucestvuva u
+WHERE u.krajna_p = 1
+GROUP BY u.ime_trka,u.vozacki_broj;
+
+
+SELECT bp.race, bp.driver
+FROM brojPobedi bp
+WHERE bp.br = (
+    SELECT MAX(br)
+    FROM brojPobedi bp2
+    WHERE bp2.race = bp.race
+)
+GROUP BY bp.race, bp.driver;
+
+4. Да се напише/ат соодветниот/те тригер/и за одржување на референцијалниот интегритет на релацијата „УЧЕСТВУВА“ доколку треба да се исполнети следните барања:
+
+Сакаме да водиме евиденција за учествата на трки од возачи кои се избришани од системот.
+Не сакаме да водиме евиденција за учествата на трки од тимови кои се избришани од системот
+
+CREATE TRIGGER t1
+AFTER DELETE ON Vozac
+FOR EACH ROW
+BEGIN
+    UPDATE Ucestvuva
+    SET vozacki_broj = NULL
+    WHERE vozacki_broj = OLD.vozacki_broj;
+END;
+
+CREATE TRIGGER t2
+AFTER DELETE ON Tim
+FOR EACH ROW
+BEGIN
+    DELETE FROM Ucestvuva
+    WHERE ime_tim = OLD.ime;
+END;
